@@ -47,13 +47,13 @@ main(int argc, char **argv)
 
   md = mixerdev_new(opt.mixer, opt.device);
 
-  if (fork())
-    exit(0);
-
   if (gtk_init_check(&argc, &argv) == 0)
     err(69, "gtk init failed");
-  trayobj_init(md);
 
+  if (fork()) /* detach from terminal */
+    exit(0);
+
+  trayobj_init(md);
   mixerdev_del(md);
 }
 

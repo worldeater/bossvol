@@ -1,5 +1,5 @@
 A minimalistic OSS volume control for the systray. Written in C on FreeBSD.
 
-- Requires x11-toolkits/gtk20.
+- Requires x11-toolkits/gtk20 and an icon theme, e.g. misc/hicolor-icon-theme.
 - Using the mouse wheel adjusts the volume, middle click mutes/unmutes.
 

@@ -4,8 +4,8 @@
 #include "gui.h"
 
 
-#define TOOLTIP_MAX  64
-
+#define TOOLTIP_MAX    64
+#define POLL_INTERVAL  250  /* in milliseconds */
 
 enum volicon_index {
   volicon_muted,
@@ -30,7 +30,7 @@ struct ui {
 
 static gboolean trayobj_onclick(GtkStatusIcon *obj __unused, GdkEventButton *restrict ev, struct ui *restrict ui);
 static gboolean trayobj_onscroll(GtkStatusIcon *obj __unused, GdkEventScroll *restrict ev, struct ui *restrict ui);
-static void trayobj_update(struct ui *restrict ui);
+static gboolean trayobj_update(struct ui *restrict ui);
 
 
 static gboolean
@@ -82,27 +82,33 @@ handled:
 }
 
 
-static void
+static gboolean
 trayobj_update(struct ui *restrict ui)
 {
+  static int lastvol = -1; /* -1 enforces an update on the very first call */
   const char *mixer;
   const char *device;
-  int vol;
   int idx;
+  int vol;
 
   vol = mixerdev_get_vol(ui->mixerdev);
 
-  if (vol <= 0)  idx = volicon_muted;  else
-  if (vol <= 33) idx = volicon_low;    else
-  if (vol <= 66) idx = volicon_medium; else
-                 idx = volicon_high;
-  gtk_status_icon_set_from_gicon(ui->trayobj, ui->vol_icon[idx]);
+  if (lastvol != vol) {
+    if (vol <= 0)  idx = volicon_muted;  else
+    if (vol <= 33) idx = volicon_low;    else
+    if (vol <= 66) idx = volicon_medium; else
+                   idx = volicon_high;
+    gtk_status_icon_set_from_gicon(ui->trayobj, ui->vol_icon[idx]);
 
-  mixer = mixerdev_get_mixer_name(ui->mixerdev);
-  device = mixerdev_get_dev_name(ui->mixerdev);
+    mixer = mixerdev_get_mixer_name(ui->mixerdev);
+    device = mixerdev_get_dev_name(ui->mixerdev);
+    snprintf(ui->tooltip, TOOLTIP_MAX, "%s - %s: %d%%", mixer, device, vol);
+    gtk_status_icon_set_tooltip_text(ui->trayobj, ui->tooltip);
 
-  snprintf(ui->tooltip, TOOLTIP_MAX, "%s - %s: %d%%", mixer, device, vol);
-  gtk_status_icon_set_tooltip_text(ui->trayobj, ui->tooltip);
+    lastvol = vol;
+  }
+
+  return TRUE;
 }
 
 
@@ -142,8 +148,9 @@ trayobj_init(struct mixerdev *md)
   trayobj_update(&ui);
 
   g_signal_connect(GTK_STATUS_ICON(ui.trayobj), "scroll-event", (GCallback)trayobj_onscroll, &ui);
-	g_signal_connect(GTK_STATUS_ICON(ui.trayobj), "button-press-event", (GCallback)trayobj_onclick, &ui);
+  g_signal_connect(GTK_STATUS_ICON(ui.trayobj), "button-press-event", (GCallback)trayobj_onclick, &ui);
   g_signal_connect(GTK_MENU_ITEM(ui.menu_exit), "activate", (GCallback)gtk_main_quit, NULL);
+  g_timeout_add(POLL_INTERVAL, (GSourceFunc)trayobj_update, &ui); /* poll for external volume changes */
 
   gtk_main();
 }
